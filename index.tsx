@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import './index.css';
 
 // Station Types
 type Station = 'MERCH' | 'BEER' | 'TICKETS' | 'PRODUCTION' | 'COORDINATOR';
@@ -31,6 +32,10 @@ const BoutCoordinatorApp = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [showNetworkModal, setShowNetworkModal] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState('');
+
+  // Reset State
+  const [showResetView, setShowResetView] = useState(false);
+  const [resetInputText, setResetInputText] = useState('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -106,8 +111,6 @@ const BoutCoordinatorApp = () => {
         .single();
       
       if (stateError) {
-        // If row doesn't exist, we might ignore or log, but connection is technically okay if auth passed.
-        // However, usually this errors if table doesn't exist or RLS blocks.
         console.warn("Could not fetch initial state:", stateError.message);
       }
       
@@ -155,8 +158,7 @@ const BoutCoordinatorApp = () => {
             setShowNetworkModal(false);
             setConnectionError('');
             
-            // Only save to local storage if NOT using env vars/defaults (to avoid caching secrets on public machines if typed manually)
-            // But for simplicity here, we only save if we manually entered them
+            // Only save to local storage if NOT using env vars/defaults
             if (!process.env?.SUPABASE_URL) {
                 localStorage.setItem('supabase_url', url);
                 localStorage.setItem('supabase_key', key);
@@ -207,6 +209,34 @@ const BoutCoordinatorApp = () => {
         .update({ capacity: newCap })
         .eq('id', 'global_event');
     }
+  };
+
+  const handleFullReset = async () => {
+    if (resetInputText !== 'RESET') return;
+
+    if (supabaseClient) {
+      // 1. Reset Door Count
+      await supabaseClient
+        .from('event_state')
+        .update({ door_count: 0 })
+        .eq('id', 'global_event');
+      
+      // 2. Delete All Messages
+      // Note: 'id' > -1 ensures we target all valid rows
+      await supabaseClient
+        .from('messages')
+        .delete()
+        .neq('id', -1);
+    }
+
+    // Local Reset
+    setDoorCount(0);
+    setMessages([]);
+    
+    // Close modal
+    setShowResetView(false);
+    setResetInputText('');
+    setShowNetworkModal(false);
   };
 
   const handleClaimBC = () => {
@@ -344,11 +374,52 @@ const BoutCoordinatorApp = () => {
             </div>
             <div className="modal-body">
               {isConnected ? (
-                <div className="net-active-state">
-                  <div className="active-title">CONNECTED TO SUPABASE</div>
-                  <div className="active-info">Data syncing in real-time</div>
-                  <button className="btn-disconnect" onClick={disconnect}>DISCONNECT & CLEAR</button>
-                </div>
+                <>
+                  <div className="net-active-state">
+                    <div className="active-title">CONNECTED TO SUPABASE</div>
+                    <div className="active-info">Data syncing in real-time</div>
+                    <button className="btn-disconnect" onClick={disconnect}>DISCONNECT & CLEAR</button>
+                  </div>
+                  
+                  {/* DANGER ZONE - RESET */}
+                  <div className="danger-zone">
+                    <div className="danger-title">Danger Zone</div>
+                    {!showResetView ? (
+                      <button className="btn-show-reset" onClick={() => setShowResetView(true)}>
+                        RESET EVENT DATA
+                      </button>
+                    ) : (
+                      <div className="reset-container">
+                        <div className="net-desc" style={{marginBottom: '8px', color: 'var(--danger)', fontSize: '0.8rem'}}>
+                          Type <strong>RESET</strong> to clear all messages and zero the counter.
+                        </div>
+                        <div className="reset-row">
+                          <input 
+                            type="text" 
+                            className="input-danger"
+                            placeholder="Type RESET"
+                            value={resetInputText}
+                            onChange={(e) => setResetInputText(e.target.value)}
+                          />
+                          <button 
+                            className="btn-danger-confirm" 
+                            disabled={resetInputText !== 'RESET'}
+                            onClick={handleFullReset}
+                          >
+                            CONFIRM
+                          </button>
+                        </div>
+                        <button 
+                          className="btn-cancel-reset" 
+                          onClick={() => { setShowResetView(false); setResetInputText(''); }}
+                          style={{marginTop: '8px', width: '100%', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.8rem', cursor: 'pointer'}}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </>
               ) : (
                 <div className="net-section">
                   <div className="net-desc">Enter your Supabase credentials to sync.</div>
