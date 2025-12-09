@@ -55,8 +55,8 @@ const BoutCoordinatorApp = () => {
   const [connectionError, setConnectionError] = useState('');
   
   // WiFi State
-  const [wifiSSID, setWifiSSID] = useState('');
-  const [wifiPass, setWifiPass] = useState('');
+  const [wifiSSID, setWifiSSID] = useState('GRDFOH');
+  const [wifiPass, setWifiPass] = useState('gorgerollerderby23');
   const [showWifiQr, setShowWifiQr] = useState(false);
   const [qrDataUrl, setQrDataUrl] = useState('');
   
