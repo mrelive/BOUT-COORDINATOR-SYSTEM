@@ -1,0 +1,16 @@
+{
+  "name": "BOUT COORDINATOR SYSTEMS™",
+  "short_name": "BCS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e293b",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ]
+}
