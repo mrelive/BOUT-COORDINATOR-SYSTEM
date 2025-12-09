@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import './index.css';
 
 // Station Types
@@ -14,9 +14,28 @@ interface Message {
   text: string;
 }
 
+interface UserPresence {
+  presence_ref: string;
+  device_id: string;
+  role: string;
+  online_at: string;
+}
+
+const generateDeviceId = () => {
+  let id = localStorage.getItem('derby_device_id');
+  if (!id) {
+    id = 'dev_' + Math.random().toString(36).substr(2, 9);
+    localStorage.setItem('derby_device_id', id);
+  }
+  return id;
+};
+
 const BoutCoordinatorApp = () => {
   // --- STATE ---
+  const [deviceId] = useState<string>(generateDeviceId());
   const [operatorName, setOperatorName] = useState(''); 
+  
+  // App Data
   const [doorCount, setDoorCount] = useState<number>(0);
   const [capacity, setCapacity] = useState<number>(300);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -27,11 +46,15 @@ const BoutCoordinatorApp = () => {
 
   // Supabase State
   const [supabaseClient, setSupabaseClient] = useState<SupabaseClient | null>(null);
+  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
   const [configUrl, setConfigUrl] = useState('');
   const [configKey, setConfigKey] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [showNetworkModal, setShowNetworkModal] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState('');
+  
+  // Presence State
+  const [otherCoordinatorOnline, setOtherCoordinatorOnline] = useState(false);
 
   // Reset State
   const [showResetView, setShowResetView] = useState(false);
@@ -43,6 +66,32 @@ const BoutCoordinatorApp = () => {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Load Saved Role on Mount
+  useEffect(() => {
+    const savedRole = localStorage.getItem('derby_role');
+    if (savedRole) {
+      setOperatorName(savedRole);
+    }
+  }, []);
+
+  // Persist Role Logic & Update Presence
+  useEffect(() => {
+    if (operatorName) {
+      localStorage.setItem('derby_role', operatorName);
+    } else {
+      localStorage.removeItem('derby_role');
+    }
+
+    // Update Presence if connected
+    if (channel) {
+      channel.track({
+        device_id: deviceId,
+        role: operatorName,
+        online_at: new Date().toISOString()
+      });
+    }
+  }, [operatorName, channel, deviceId]);
 
   // Load credentials from Env or local storage on mount
   useEffect(() => {
@@ -73,12 +122,10 @@ const BoutCoordinatorApp = () => {
     }
 
     if (envUrl && envKey) {
-      // Priority 1: Env Vars or Hardcoded Defaults
       setConfigUrl(envUrl);
       setConfigKey(envKey);
       connectToSupabase(envUrl, envKey);
     } else {
-      // Priority 2: Local Storage (Fallback for custom overrides)
       const savedUrl = localStorage.getItem('supabase_url');
       const savedKey = localStorage.getItem('supabase_key');
       if (savedUrl && savedKey) {
@@ -86,7 +133,6 @@ const BoutCoordinatorApp = () => {
         setConfigKey(savedKey);
         connectToSupabase(savedUrl, savedKey);
       } else {
-        // Priority 3: User Manual Input
         setShowNetworkModal(true); 
       }
     }
@@ -104,15 +150,11 @@ const BoutCoordinatorApp = () => {
       const client = createClient(url, key);
       
       // 1. Initial Fetch
-      const { data: stateData, error: stateError } = await client
+      const { data: stateData } = await client
         .from('event_state')
         .select('*')
         .eq('id', 'global_event')
         .single();
-      
-      if (stateError) {
-        console.warn("Could not fetch initial state:", stateError.message);
-      }
       
       if (stateData) {
         setDoorCount(stateData.door_count);
@@ -127,13 +169,19 @@ const BoutCoordinatorApp = () => {
         .limit(50);
         
       if (msgData) {
-        // Reverse to show oldest first in UI flow
         setMessages(msgData.reverse() as any); 
       }
 
-      // 2. Realtime Subscription
-      const channel = client
-        .channel('public:room')
+      // 2. Realtime Subscription (Data + Presence)
+      const newChannel = client.channel('public:room', {
+        config: {
+          presence: {
+            key: deviceId,
+          },
+        },
+      });
+
+      newChannel
         .on(
           'postgres_changes',
           { event: 'UPDATE', schema: 'public', table: 'event_state', filter: 'id=eq.global_event' },
@@ -151,14 +199,37 @@ const BoutCoordinatorApp = () => {
             setMessages(prev => [...prev, newMsg]);
           }
         )
-        .subscribe((status) => {
+        .on('presence', { event: 'sync' }, () => {
+          const state = newChannel.presenceState();
+          let bcFound = false;
+          
+          Object.values(state).forEach((presences: any) => {
+            (presences as UserPresence[]).forEach(p => {
+               // Check if someone ELSE is the coordinator
+               if (p.role === 'COORDINATOR' && p.device_id !== deviceId) {
+                 bcFound = true;
+               }
+            });
+          });
+          
+          setOtherCoordinatorOnline(bcFound);
+        })
+        .subscribe(async (status) => {
           if (status === 'SUBSCRIBED') {
             setIsConnected(true);
             setSupabaseClient(client);
+            setChannel(newChannel);
             setShowNetworkModal(false);
             setConnectionError('');
             
-            // Only save to local storage if NOT using env vars/defaults
+            // Track initial presence
+            const currentRole = localStorage.getItem('derby_role') || '';
+            await newChannel.track({
+              device_id: deviceId,
+              role: currentRole,
+              online_at: new Date().toISOString()
+            });
+
             if (!process.env?.SUPABASE_URL) {
                 localStorage.setItem('supabase_url', url);
                 localStorage.setItem('supabase_key', key);
@@ -178,6 +249,7 @@ const BoutCoordinatorApp = () => {
       supabaseClient.removeAllChannels();
     }
     setSupabaseClient(null);
+    setChannel(null);
     setIsConnected(false);
     localStorage.removeItem('supabase_url');
     localStorage.removeItem('supabase_key');
@@ -188,7 +260,6 @@ const BoutCoordinatorApp = () => {
   // --- ACTIONS ---
 
   const handleDoorChange = async (delta: number) => {
-    // Optimistic Update
     const newCount = Math.max(0, doorCount + delta);
     setDoorCount(newCount);
 
@@ -215,25 +286,20 @@ const BoutCoordinatorApp = () => {
     if (resetInputText !== 'RESET') return;
 
     if (supabaseClient) {
-      // 1. Reset Door Count
       await supabaseClient
         .from('event_state')
         .update({ door_count: 0 })
         .eq('id', 'global_event');
       
-      // 2. Delete All Messages
-      // Note: 'id' > -1 ensures we target all valid rows
       await supabaseClient
         .from('messages')
         .delete()
         .neq('id', -1);
     }
 
-    // Local Reset
     setDoorCount(0);
     setMessages([]);
     
-    // Close modal
     setShowResetView(false);
     setResetInputText('');
     setShowNetworkModal(false);
@@ -286,7 +352,6 @@ const BoutCoordinatorApp = () => {
     }
 
     const newMessage = {
-      // ID generated by DB
       time: timeStr,
       station: sender,
       text: inputText.trim()
@@ -336,7 +401,9 @@ const BoutCoordinatorApp = () => {
             <div className="operator-actions">
               <select className="role-select" onChange={handleRoleSelect} value="">
                 <option value="" disabled>Select Role...</option>
-                <option value="COORDINATOR">Bout Coordinator</option>
+                <option value="COORDINATOR" disabled={otherCoordinatorOnline}>
+                  {otherCoordinatorOnline ? 'Bout Coordinator (Online)' : 'Bout Coordinator'}
+                </option>
                 <option disabled>──────</option>
                 {GRID_STATIONS.map(s => (
                   <option key={s} value={s}>{s}</option>
@@ -378,6 +445,7 @@ const BoutCoordinatorApp = () => {
                   <div className="net-active-state">
                     <div className="active-title">CONNECTED TO SUPABASE</div>
                     <div className="active-info">Data syncing in real-time</div>
+                    <div className="device-id-display">Device ID: {deviceId}</div>
                     <button className="btn-disconnect" onClick={disconnect}>DISCONNECT & CLEAR</button>
                   </div>
                   
