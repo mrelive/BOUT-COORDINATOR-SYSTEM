@@ -944,14 +944,14 @@ header {
   
   /* Reduce Station Card Height to give space to chat */
   .station-grid { gap: 6px; }
-  .station-card { min-height: 80px; }
+  .station-card { min-height: 60px; }
   .station-header { padding: 6px 8px; }
   .station-body { padding: 6px; }
 
   /* Compact Counter for Mobile */
-  .counter-body { padding: 8px 12px; gap: 8px; }
-  .btn-dec, .btn-inc { width: 44px; height: 44px; font-size: 1.5rem; }
-  .count-display-large { font-size: 2.2rem; }
+  .counter-body { padding: 4px 8px; gap: 6px; }
+  .btn-dec, .btn-inc { width: 40px; height: 40px; font-size: 1.4rem; }
+  .count-display-large { font-size: 2rem; }
   
   /* Input Scaling */
   .input-row { gap: 6px; }

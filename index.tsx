@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
 import QRCode from 'qrcode';
-import './index.css';
+// import './index.css'; // REMOVED: Loaded via index.html to prevent white screen crash
 
 // Station Types
 type Station = 'MERCH' | 'BEER' | 'TICKETS' | 'PRODUCTION' | 'COORDINATOR';
