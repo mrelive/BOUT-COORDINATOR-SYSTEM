@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
@@ -21,6 +22,15 @@ interface UserPresence {
   role: string;
   online_at: string;
 }
+
+// --- LOGO COMPONENT ---
+const BcsLogo = () => (
+  <svg width="24" height="24" viewBox="0 0 64 64" fill="none" className="app-logo">
+    <rect x="8" y="8" width="48" height="48" rx="8" stroke="currentColor" strokeWidth="4" className="logo-rect"/>
+    <path d="M32 8 V24 M32 40 V56 M8 32 H24 M40 32 H56" stroke="currentColor" strokeWidth="4" className="logo-lines"/>
+    <circle cx="32" cy="32" r="6" fill="currentColor" className="logo-dot"/>
+  </svg>
+);
 
 const generateDeviceId = () => {
   let id = localStorage.getItem('derby_device_id');
@@ -424,6 +434,12 @@ const BoutCoordinatorApp = () => {
     <>
       <header>
         <div className="header-left">
+          {/* BRANDING IN GUI */}
+          <div className="app-brand-main">
+            <BcsLogo />
+            <span className="brand-name">BOUT COORDINATOR SYSTEMS™</span>
+          </div>
+
           <div className="header-label">OPERATOR</div>
           {isAssigned ? (
             <div className="operator-display">
@@ -486,7 +502,10 @@ const BoutCoordinatorApp = () => {
         <div className="modal-overlay">
           <div className="modal modal-wifi">
              <div className="modal-header">
-              <span>VENUE WIFI ACCESS</span>
+              <div className="header-brand-group">
+                <BcsLogo />
+                <span>VENUE WIFI ACCESS</span>
+              </div>
               <button className="btn-close" onClick={() => setShowWifiQr(false)}>✕</button>
             </div>
             <div className="modal-body wifi-body">
@@ -517,7 +536,10 @@ const BoutCoordinatorApp = () => {
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <span>SYSTEM CONFIGURATION</span>
+              <div className="header-brand-group">
+                <BcsLogo />
+                <span>BOUT COORDINATOR SYSTEMS™</span>
+              </div>
               <button className="btn-close" onClick={() => setShowNetworkModal(false)}>✕</button>
             </div>
             <div className="modal-body">
@@ -622,6 +644,9 @@ const BoutCoordinatorApp = () => {
                 </div>
               )}
             </div>
+             <div className="branding-footer">
+                BOUT COORDINATOR SYSTEMS™
+             </div>
           </div>
         </div>
       )}
