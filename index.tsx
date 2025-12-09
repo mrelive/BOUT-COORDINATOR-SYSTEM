@@ -115,42 +115,20 @@ const BoutCoordinatorApp = () => {
     const DEFAULT_URL = 'https://rcfjdnzppdbrjjugzzza.supabase.co';
     const DEFAULT_KEY = 'sb_publishable_9VrqHhPhwkRDSS0YdVEUGg_m_lh9clC';
 
-    let envUrl = DEFAULT_URL;
-    let envKey = DEFAULT_KEY;
+    // 2. Load from LocalStorage or fall back to defaults
+    // We REMOVED process.env checks here to avoid crashing on mobile browsers
+    const savedUrl = localStorage.getItem('supabase_url');
+    const savedKey = localStorage.getItem('supabase_key');
 
-    // 2. Check for Environment Variables (Vercel/Build time overrides)
-    try {
-      if (typeof process !== 'undefined' && process.env) {
-        if (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL) {
-           envUrl = process.env.SUPABASE_URL || 
-                    process.env.NEXT_PUBLIC_SUPABASE_URL || 
-                    process.env.VITE_SUPABASE_URL || '';
-        }
-        
-        if (process.env.SUPABASE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_KEY) {
-           envKey = process.env.SUPABASE_KEY || 
-                    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 
-                    process.env.VITE_SUPABASE_KEY || '';
-        }
-      }
-    } catch (e) {
-      // Ignore if process is not defined
-    }
-
-    if (envUrl && envKey) {
-      setConfigUrl(envUrl);
-      setConfigKey(envKey);
-      connectToSupabase(envUrl, envKey);
+    if (savedUrl && savedKey) {
+      setConfigUrl(savedUrl);
+      setConfigKey(savedKey);
+      connectToSupabase(savedUrl, savedKey);
     } else {
-      const savedUrl = localStorage.getItem('supabase_url');
-      const savedKey = localStorage.getItem('supabase_key');
-      if (savedUrl && savedKey) {
-        setConfigUrl(savedUrl);
-        setConfigKey(savedKey);
-        connectToSupabase(savedUrl, savedKey);
-      } else {
-        setShowNetworkModal(true); 
-      }
+      // Use defaults if no local storage override exists
+      setConfigUrl(DEFAULT_URL);
+      setConfigKey(DEFAULT_KEY);
+      connectToSupabase(DEFAULT_URL, DEFAULT_KEY);
     }
   }, []);
 
@@ -266,10 +244,9 @@ const BoutCoordinatorApp = () => {
               online_at: new Date().toISOString()
             });
 
-            if (!process.env?.SUPABASE_URL) {
-                localStorage.setItem('supabase_url', url);
-                localStorage.setItem('supabase_key', key);
-            }
+            // Persist connection info
+            localStorage.setItem('supabase_url', url);
+            localStorage.setItem('supabase_key', key);
           }
         });
 
