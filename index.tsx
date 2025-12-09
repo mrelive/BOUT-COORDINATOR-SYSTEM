@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
@@ -106,7 +105,7 @@ const BoutCoordinatorApp = () => {
         device_id: deviceId,
         role: operatorName,
         online_at: new Date().toISOString()
-      });
+      }).catch(err => console.error("Presence track error", err));
     }
   }, [operatorName, channel, deviceId]);
 
@@ -240,12 +239,13 @@ const BoutCoordinatorApp = () => {
           let bcFound = false;
           
           Object.values(state).forEach((presences: any) => {
-            (presences as UserPresence[]).forEach(p => {
-               // Check if someone ELSE is the coordinator
-               if (p.role === 'COORDINATOR' && p.device_id !== deviceId) {
-                 bcFound = true;
-               }
-            });
+            if (Array.isArray(presences)) {
+              presences.forEach((p: any) => {
+                if (p.role === 'COORDINATOR' && p.device_id !== deviceId) {
+                  bcFound = true;
+                }
+              });
+            }
           });
           
           setOtherCoordinatorOnline(bcFound);
@@ -429,70 +429,81 @@ const BoutCoordinatorApp = () => {
     currentSender = isCoordinator ? (selectedStation || 'COORDINATOR') : (operatorName as Station);
   }
 
+  const getShortSender = (sender: string) => {
+    if (sender === 'COORDINATOR') return 'BC';
+    if (sender === 'PRODUCTION') return 'PROD';
+    return sender;
+  };
+
   // --- RENDER ---
   return (
     <>
       <header>
-        <div className="header-left">
-          {/* BRANDING IN GUI */}
-          <div className="app-brand-main">
-            <BcsLogo />
-            <span className="brand-name">BOUT COORDINATOR SYSTEMS™</span>
-          </div>
-
-          <div className="header-label">OPERATOR</div>
-          {isAssigned ? (
-            <div className="operator-display">
-              <span className={`operator-badge badge-${operatorName === 'Bout Coordinator' ? 'coordinator' : operatorName.toLowerCase()}`}>
-                {operatorName === 'Bout Coordinator' ? 'BC' : operatorName.substring(0,2)}
-              </span>
-              <span className="operator-name">{operatorName}</span>
-              <button className="btn-release" onClick={handleRelease} title="Sign Off">✕</button>
-            </div>
-          ) : (
-            <div className="operator-actions">
-              <select className="role-select" onChange={handleRoleSelect} value="">
-                <option value="" disabled>Select Role...</option>
-                <option value="COORDINATOR" disabled={otherCoordinatorOnline}>
-                  {otherCoordinatorOnline ? 'Bout Coordinator (Online)' : 'Bout Coordinator'}
-                </option>
-                <option disabled>──────</option>
-                {GRID_STATIONS.map(s => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
-            </div>
-          )}
+        {/* ROW 1: BRANDING */}
+        <div className="header-brand-row">
+          <BcsLogo />
+          <span className="brand-name">BOUT COORDINATOR SYSTEMS™</span>
         </div>
-        
-        <div className="header-right-group">
-          {/* WIFI BUTTON */}
-          <button 
-            className="btn-network btn-wifi"
-            onClick={() => setShowWifiQr(true)}
-            title="Show WiFi QR Code"
-          >
-             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
-                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
-                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
-                <line x1="12" y1="20" x2="12.01" y2="20"></line>
-              </svg>
-          </button>
 
-          <button 
-            className={`btn-network ${isConnected ? 'client' : ''}`}
-            onClick={() => setShowNetworkModal(true)}
-          >
-            <div className="net-icon"></div>
-            <div className="net-status">
-              {isConnected ? 'DB SYNC' : 'OFFLINE'}
+        {/* ROW 2: CONTROLS */}
+        <div className="header-controls-row">
+          <div className="header-left-controls">
+            <div className="header-label">OPERATOR</div>
+            {isAssigned ? (
+              <div className="operator-display">
+                <span className={`operator-badge badge-${operatorName === 'Bout Coordinator' ? 'coordinator' : operatorName.toLowerCase()}`}>
+                  {operatorName === 'Bout Coordinator' ? 'BC' : operatorName.substring(0,2)}
+                </span>
+                <span className="operator-name">{operatorName}</span>
+                <button className="btn-release" onClick={handleRelease} title="Sign Off">✕</button>
+              </div>
+            ) : (
+              <div className="operator-actions">
+                <select className="role-select" onChange={handleRoleSelect} value="">
+                  <option value="" disabled>Select Role...</option>
+                  <option value="COORDINATOR" disabled={otherCoordinatorOnline}>
+                    {otherCoordinatorOnline ? 'Bout Coordinator (Online)' : 'Bout Coordinator'}
+                  </option>
+                  <option disabled>──────</option>
+                  {GRID_STATIONS.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          
+          <div className="header-right-group">
+            <button 
+              className={`btn-network ${isConnected ? 'client' : ''}`}
+              onClick={() => setShowNetworkModal(true)}
+            >
+              <div className="net-icon"></div>
+              <div className="net-status">
+                {isConnected ? 'DB SYNC' : 'OFFLINE'}
+              </div>
+            </button>
+
+            <div className="header-sub-controls">
+              {/* WIFI BUTTON */}
+              <button 
+                className="btn-network btn-wifi"
+                onClick={() => setShowWifiQr(true)}
+                title="Show WiFi QR Code"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                    <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                    <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                    <line x1="12" y1="20" x2="12.01" y2="20"></line>
+                  </svg>
+              </button>
+
+              <div className={`header-status ${isAssigned ? 'status-active' : 'status-inactive'}`}>
+                <span className="status-dot"></span>
+                {isAssigned ? 'ONLINE' : 'OFF'}
+              </div>
             </div>
-          </button>
-
-          <div className={`header-status ${isAssigned ? 'status-active' : 'status-inactive'}`}>
-            <span className="status-dot"></span>
-            {isAssigned ? 'ONLINE' : 'OFF'}
           </div>
         </div>
       </header>
@@ -739,7 +750,7 @@ const BoutCoordinatorApp = () => {
           <form className="input-area" onSubmit={handleSendMessage}>
             <div className={`input-row ${currentSender === 'COORDINATOR' ? 'mode-coordinator' : ''}`}>
               <div className={`selected-indicator badge-${currentSender.toLowerCase()} ${!isAssigned ? 'badge-none' : ''}`}>
-                <span className="badge-label">{currentSender === 'COORDINATOR' ? 'COORDINATOR' : currentSender}</span>
+                <span className="badge-label">{getShortSender(currentSender)}</span>
                 {isCoordinator && selectedStation && (
                   <button type="button" className="btn-clear-station" onClick={() => setSelectedStation(null)} title="Clear Selection">
                     ✕
@@ -749,7 +760,7 @@ const BoutCoordinatorApp = () => {
               <input 
                 type="text"
                 className="form-control input-text"
-                placeholder={isAssigned ? (currentSender === 'COORDINATOR' ? "Broadcast to all stations..." : `Log message from ${currentSender}...`) : "Select role above to chat..."}
+                placeholder={isAssigned ? "Type message..." : "Select role..."}
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 disabled={!isAssigned}
