@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { createClient, SupabaseClient, RealtimeChannel } from '@supabase/supabase-js';
+import QRCode from 'qrcode';
 import './index.css';
 
 // Station Types
@@ -52,6 +53,12 @@ const BoutCoordinatorApp = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [showNetworkModal, setShowNetworkModal] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState('');
+  
+  // WiFi State
+  const [wifiSSID, setWifiSSID] = useState('');
+  const [wifiPass, setWifiPass] = useState('');
+  const [showWifiQr, setShowWifiQr] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState('');
   
   // Presence State
   const [otherCoordinatorOnline, setOtherCoordinatorOnline] = useState(false);
@@ -138,6 +145,21 @@ const BoutCoordinatorApp = () => {
     }
   }, []);
 
+  // Generate QR Code when WiFi details change or modal opens
+  useEffect(() => {
+    if (showWifiQr && wifiSSID) {
+      // WPA Format: WIFI:T:WPA;S:mynetwork;P:mypass;;
+      const qrString = `WIFI:T:WPA;S:${wifiSSID};P:${wifiPass};;`;
+      QRCode.toDataURL(qrString, { width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } })
+        .then(url => {
+          setQrDataUrl(url);
+        })
+        .catch(err => {
+          console.error(err);
+        });
+    }
+  }, [showWifiQr, wifiSSID, wifiPass]);
+
   // --- SUPABASE LOGIC ---
 
   const connectToSupabase = async (url: string, key: string) => {
@@ -159,6 +181,8 @@ const BoutCoordinatorApp = () => {
       if (stateData) {
         setDoorCount(stateData.door_count);
         setCapacity(stateData.capacity);
+        if (stateData.wifi_ssid) setWifiSSID(stateData.wifi_ssid);
+        if (stateData.wifi_pass) setWifiPass(stateData.wifi_pass);
       }
 
       // Fetch recent messages
@@ -189,6 +213,8 @@ const BoutCoordinatorApp = () => {
             const newState = payload.new;
             setDoorCount(newState.door_count);
             setCapacity(newState.capacity);
+            if (newState.wifi_ssid !== undefined) setWifiSSID(newState.wifi_ssid);
+            if (newState.wifi_pass !== undefined) setWifiPass(newState.wifi_pass);
           }
         )
         .on(
@@ -366,6 +392,16 @@ const BoutCoordinatorApp = () => {
     }
   };
 
+  const handleWifiSave = async () => {
+    if (supabaseClient) {
+      // Save global WiFi settings to DB instead of local storage
+      await supabaseClient
+        .from('event_state')
+        .update({ wifi_ssid: wifiSSID, wifi_pass: wifiPass })
+        .eq('id', 'global_event');
+    }
+  };
+
   const getLastMessage = (station: Station) => {
     const stationMsgs = messages.filter(m => m.station === station);
     return stationMsgs.length > 0 ? stationMsgs[stationMsgs.length - 1] : null;
@@ -414,6 +450,20 @@ const BoutCoordinatorApp = () => {
         </div>
         
         <div className="header-right-group">
+          {/* WIFI BUTTON */}
+          <button 
+            className="btn-network btn-wifi"
+            onClick={() => setShowWifiQr(true)}
+            title="Show WiFi QR Code"
+          >
+             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12.55a11 11 0 0 1 14.08 0"></path>
+                <path d="M1.42 9a16 16 0 0 1 21.16 0"></path>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path>
+                <line x1="12" y1="20" x2="12.01" y2="20"></line>
+              </svg>
+          </button>
+
           <button 
             className={`btn-network ${isConnected ? 'client' : ''}`}
             onClick={() => setShowNetworkModal(true)}
@@ -431,15 +481,74 @@ const BoutCoordinatorApp = () => {
         </div>
       </header>
 
+      {/* WIFI QR MODAL */}
+      {showWifiQr && (
+        <div className="modal-overlay">
+          <div className="modal modal-wifi">
+             <div className="modal-header">
+              <span>VENUE WIFI ACCESS</span>
+              <button className="btn-close" onClick={() => setShowWifiQr(false)}>✕</button>
+            </div>
+            <div className="modal-body wifi-body">
+              {wifiSSID ? (
+                <>
+                  <div className="wifi-qr-container">
+                    {qrDataUrl && <img src={qrDataUrl} alt="WiFi QR Code" className="qr-image" />}
+                  </div>
+                  <div className="wifi-details">
+                    <div className="wifi-label">Network</div>
+                    <div className="wifi-value">{wifiSSID}</div>
+                    <div className="wifi-label">Password</div>
+                    <div className="wifi-value">{wifiPass || '<No Password>'}</div>
+                  </div>
+                </>
+              ) : (
+                <div className="empty-log">
+                  No WiFi configured. Click "DB SYNC" to set up venue WiFi details.
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CONNECTION CONFIG MODAL */}
       {showNetworkModal && (
         <div className="modal-overlay">
           <div className="modal">
             <div className="modal-header">
-              <span>DATABASE CONFIGURATION</span>
+              <span>SYSTEM CONFIGURATION</span>
               <button className="btn-close" onClick={() => setShowNetworkModal(false)}>✕</button>
             </div>
             <div className="modal-body">
+              
+              {/* WIFI SECTION */}
+              <div className="config-section">
+                <div className="section-title">VENUE WIFI SETTINGS</div>
+                <div className="input-group">
+                  <label>SSID (Network Name)</label>
+                  <input 
+                    type="text" 
+                    className="input-config" 
+                    value={wifiSSID}
+                    onChange={(e) => setWifiSSID(e.target.value)}
+                    onBlur={handleWifiSave}
+                    placeholder="e.g. RollerDerbyGuest"
+                  />
+                </div>
+                 <div className="input-group">
+                  <label>Password</label>
+                  <input 
+                    type="text" 
+                    className="input-config" 
+                    value={wifiPass}
+                    onChange={(e) => setWifiPass(e.target.value)}
+                    onBlur={handleWifiSave}
+                    placeholder="WPA2 Password"
+                  />
+                </div>
+              </div>
+
               {isConnected ? (
                 <>
                   <div className="net-active-state">
@@ -490,6 +599,7 @@ const BoutCoordinatorApp = () => {
                 </>
               ) : (
                 <div className="net-section">
+                   <div className="section-title">DATABASE CONNECTION</div>
                   <div className="net-desc">Enter your Supabase credentials to sync.</div>
                   <input 
                     type="text" 

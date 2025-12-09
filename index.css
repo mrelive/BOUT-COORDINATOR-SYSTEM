@@ -61,9 +61,9 @@ body {
 header {
   background-color: var(--bg-panel);
   border-bottom: 1px solid var(--border);
-  padding: 16px;
+  padding: 24px 16px 16px 16px;
   /* Ensure padding respects notch/safe-area on mobile */
-  padding-top: max(48px, env(safe-area-inset-top));
+  padding-top: max(80px, calc(env(safe-area-inset-top) + 30px));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -202,6 +202,14 @@ header {
   background-color: rgba(59, 130, 246, 0.2);
   border-color: var(--primary);
   color: var(--primary);
+}
+
+.btn-wifi {
+  padding: 6px;
+  color: var(--text-muted);
+}
+.btn-wifi:hover {
+  color: var(--text-main);
 }
 
 .net-icon {
@@ -621,6 +629,7 @@ header {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  max-height: 90vh; /* Prevent modal from growing too large on small screens */
 }
 
 .modal-header {
@@ -647,6 +656,76 @@ header {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  overflow-y: auto;
+}
+
+/* WiFi specific modal styling */
+.wifi-body {
+  align-items: center;
+  text-align: center;
+}
+
+.wifi-qr-container {
+  background: #fff;
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  display: inline-block;
+}
+
+.qr-image {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+.wifi-details {
+  background-color: var(--bg-input);
+  padding: 16px;
+  border-radius: 8px;
+  width: 100%;
+}
+
+.wifi-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.wifi-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+.wifi-value:last-child { margin-bottom: 0; }
+
+.config-section {
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.input-group label {
+  font-size: 0.8rem;
+  color: var(--text-muted);
 }
 
 .net-section {
